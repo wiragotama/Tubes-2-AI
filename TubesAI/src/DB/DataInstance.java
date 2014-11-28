@@ -4,7 +4,7 @@
  * and open the template in the editor.
  */
 
-package featureExtraction;
+package DB;
 import java.util.Vector;
 import java.lang.String;
 /**

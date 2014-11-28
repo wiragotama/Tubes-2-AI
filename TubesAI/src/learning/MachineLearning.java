@@ -8,44 +8,30 @@ package learning;
 import weka.core.Instances;
 import weka.core.converters.ArffLoader;
 import weka.core.Utils;
-import weka.classifiers.functions.SMO;
 import weka.classifiers.Evaluation;
 import weka.classifiers.Classifier;
-import weka.classifiers.functions.LibSVM;
-import libsvm.*;
 import java.io.*;
 import java.util.Random;
-import java.util.Scanner;
+import weka.classifiers.functions.LibSVM;
 import weka.core.converters.ConverterUtils;
+import weka.filters.Filter;
+import weka.filters.supervised.instance.Resample;
+import weka.filters.unsupervised.attribute.Standardize;
+import weka.filters.unsupervised.attribute.StringToWordVector;
 /**
  *
  * @author wira gotama
  */
-public class Learning {
+public class MachineLearning {
     private ArffLoader loader;
     private Instances dataset;
     public LibSVM SVM;
-    private int classAttrNum; //default 10 untuk tubes aslinya
+    private int classAttrNum; //default 0 untuk tubes aslinya
     private Instances unlabeled;
     private Instances labeled; //for testring
     
-    
-    public static void main(String[] args) throws IOException, Exception { //main disini untuk memudahkan testing aja
-        
-        Scanner in = new Scanner(System.in);
-        int validationOption = in.nextInt();
-        String path = "E://ITB 2012/TEKNIK INFORMATIKA 2012 NIM 13512015/Semester 5/Intelegensia Buatan/Tugas/Tubes 2/TubesAI/dataset.arff";
-        
-        Learning l = new Learning(10);
-        l.loadDataset(path);
-        System.out.println("Succesfully load the dataset");
-        l.learningSVM();
-        l.evaluate(l.SVM, path, validationOption);
-        //l.loadHypothesis(validationOption);
-    }
-    
-    public Learning(int attrNum) {
-        classAttrNum = attrNum;
+    public MachineLearning() {
+        classAttrNum = 0;
     }
     
     
@@ -79,13 +65,32 @@ public class Learning {
         return dataset;
     }
     
-    public void loadDataset(String path) throws IOException {
+    public void loadDataset(String path) throws IOException, Exception {
     /* I.S : path defined
-       F.S : arff dataset loaded */
-        
+       F.S : arff dataset loaded */ 
         loader = new ArffLoader();
         loader.setSource(new File(path));
         dataset = loader.getDataSet();
+        dataset.setClassIndex(1);
+    }
+    
+    public void makeWordVector() throws Exception {
+    /* I.S : dataset loaded
+       F.S : dataset met to word vector */
+        
+        File stopwrods = new File("stopwordsFolder/stopwords.txt");
+        StringToWordVector filter = new StringToWordVector();
+        filter.setAttributeIndices("first-last");
+        filter.setWordsToKeep(295);
+        filter.setDoNotOperateOnPerClassBasis(true);
+        filter.setLowerCaseTokens(true);
+        filter.setStopwords(stopwrods);
+        filter.setUseStoplist(true);
+        //filter.setTFTransform(true);
+        filter.setIDFTransform(true);
+        filter.setInputFormat(dataset);
+        //filter.setMinTermFreq(15);
+        dataset = Filter.useFilter(dataset, filter);
         dataset.setClassIndex(classAttrNum);
     }
     
@@ -101,8 +106,8 @@ public class Learning {
             eval.evaluateModel(cls, dataset);
         }
         
-        System.out.println(cls.toString());
         System.out.println(eval.toSummaryString("\nResults\n\n", false));
+        saveHypothesis(SVM);
     }
     
     public void saveHypothesis(Classifier cls) throws Exception {
@@ -142,16 +147,15 @@ public class Learning {
         
         SVM = new LibSVM();
         SVM = (LibSVM) weka.core.SerializationHelper.read("class weka.classifiers.functions.LibSVM.model");
-        readClassAttrNum(); dataset.setClassIndex(classAttrNum);
+        readClassAttrNum();
         System.out.println(SVM.toString());
     }
     
     public void learningSVM() throws Exception {
     /* I.S : data defined
        F.S : SVM hypothesis constructed */
-        
         SVM = new LibSVM(); // new instance of SVM
-        SVM.setOptions(Utils.splitOptions("-S 0 -K 2 -D 3 -G 0.0 -R 0.0 -N 0.5 -M 40.0 -C 1.0 -E 2.0 -P 0.1 -seed 1")); 
+        SVM.setOptions(Utils.splitOptions("**-G 0.09** -S 0 -T 3 -D 3 -R 0.0 -N 0.5 -M 100.0 -C 1.0 -E 0.9 -P 0.1 -seed 1 -B 1")); 
         SVM.buildClassifier(dataset);
         saveHypothesis(SVM);
     }
@@ -160,13 +164,84 @@ public class Learning {
     /* I.S : test instances defined, classifier defined
        F.S : test instances classification output to screen */
         
-        System.out.println("Data Test");
         double clsLabel = 0;
-        for (int i = 0; i < unlabeled.numInstances(); i++) {
+        for (int i=0; i<unlabeled.numInstances(); i++) {
             clsLabel = SVM.classifyInstance(unlabeled.instance(i));
             labeled.instance(i).setClassValue(clsLabel);
         }
-        ConverterUtils.DataSink.write(System.out, labeled);
-        System.out.println();
+        
+        //save class attribute
+        FileWriter fw = new FileWriter("result.csv");
+        PrintWriter pw = new PrintWriter(fw);
+        pw.println("Full_text,label");
+        for (int i=0; i<labeled.numInstances(); i++) {
+            pw.println("\""+dataset.instance(i).stringValue(0)+"\""+","+labeled.instance(i).stringValue(0));
+        }
+        //Flush the output to the file
+        pw.flush();
+        //Close the Print Writer
+        pw.close();
+        //Close the File Writer
+        fw.close();
+    }
+    
+    public void loadTestInstance(String path) throws Exception {
+    /* I.S : path defined
+       F.S : arff test instance loaded */
+        
+        loadDataset(path);
+        File stopwrods = new File("stopwordsFolder/stopwords.txt");
+        StringToWordVector filter = new StringToWordVector();
+        filter.setAttributeIndices("first-last");
+        filter.setWordsToKeep(295);
+        filter.setDoNotOperateOnPerClassBasis(true);
+        filter.setLowerCaseTokens(true);
+        filter.setStopwords(stopwrods);
+        filter.setUseStoplist(true);
+        //filter.setTFTransform(true);
+        filter.setIDFTransform(true);
+        filter.setInputFormat(dataset);
+        //filter.setMinTermFreq(15);
+        unlabeled = Filter.useFilter(dataset, filter);
+        unlabeled.setClassIndex(classAttrNum);
+        labeled = new Instances(unlabeled);
+    }
+    
+    private String mapping(int num) {
+        switch (num) {
+            case 1 : {
+                return "Pendidikan";
+            }
+            case 2 : {
+                return "Politik";
+            }
+            case 3 : {
+                return "Hukum dan Kriminal";
+            }
+            case 4 : {
+                return "Sosial Budaya";
+            }
+            case 5 : {
+                return "Olahraga";
+            }
+            case 6 : {
+                return "Teknologi dan Sains";
+            }
+            case 7 : {
+                return "Hiburan";
+            }
+            case 8 : {
+                return "Bisnis dan Ekonomi";
+            }
+            case 9 : {
+                return "Kesehatan";
+            }
+            case 10 : {
+                return "Bencana dan Kecelakaan";
+            }
+            default : {
+                return "";
+            }
+        }
     }
 }
