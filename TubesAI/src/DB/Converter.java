@@ -55,7 +55,7 @@ public class Converter {
        F.S : save CSV file to arff */
         
         CSVLoader loader = new CSVLoader();
-        //loader.setOptions(Utils.splitOptions("-H"));
+        loader.setOptions(Utils.splitOptions("-H"));
         loader.setSource(new File(filename));
         Instances data = loader.getDataSet();
         

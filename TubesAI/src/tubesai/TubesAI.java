@@ -19,7 +19,7 @@ public class TubesAI {
      * @param args the command line arguments
      */
     public static void main(String[] args) throws Exception {
-        String pathdataset = "dataset.arff";
+        //String pathdataset = "dataset.arff"; this is absolute path
         String pathCSV = "testing.csv";
         String pathArff = "testing.arff";
         
@@ -29,16 +29,17 @@ public class TubesAI {
             //learning
             Converter c = new Converter();
             c.loadDataset();
-            c.saveToArff(pathdataset, c.dataDB);
-            l.loadDataset(pathdataset);
+            c.saveToArff(l.datasetPath, c.dataDB);
+            l.loadDataset();
             l.makeWordVector();
             l.learningSVM();
-            l.evaluate(l.SVM, pathdataset, 1);
+            l.evaluate(l.SVM, l.datasetPath, 1);
         }
         else {
             l.loadHypothesis(1);
             Converter c = new Converter();
             c.saveCSVtoArff(pathCSV, pathArff);
+            l.loadDataset();
             l.loadTestInstance(pathArff);
             l.classifyTestInstance();
         }
