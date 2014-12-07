@@ -63,8 +63,8 @@ public class Converter {
         PrintWriter pw = new PrintWriter(fw);
         
         printArffHeader(pw);
-        for (int i=0; i<data.numInstances(); i++) {
-            pw.println("\""+data.instance(i).stringValue(2).replace("\"", "").replace("\n"," ")+"\", "+data.instance(i).stringValue(13).replace(" ",""));
+        for (int i=1; i<data.numInstances(); i++) {
+            pw.println("\""+data.instance(i).stringValue(2).replace("\"", "").replace("\n"," ").replace(".","").replace(","," ")+"\", "+data.instance(i).stringValue(13).replace(" ","").toLowerCase());
         }
         
         //Flush the output to the file
@@ -86,7 +86,7 @@ public class Converter {
         
         printArffHeader(pw);
         for (int i=0; i<dataDB.numInstances(); i++) {
-            pw.println("\""+dataDB.instance(i).stringValue(0).replace("\"", "").replace("\n"," ")+"\", "+dataDB.instance(i).stringValue(1).replace(" ",""));
+            pw.println("\""+dataDB.instance(i).stringValue(0).replace("\"", "").replace("\n"," ").replace(".","").replace(","," ")+"\", "+dataDB.instance(i).stringValue(1).replace(" ","").toLowerCase());
         }
 
         //Flush the output to the file
@@ -113,7 +113,7 @@ public class Converter {
             else 
                 temp += mapping(i).replace(" ","");
         }
-        pw.println("@attribute label {"+temp+"}");
+        pw.println("@attribute label {"+temp.toLowerCase()+"}");
         pw.println();
         pw.println("@data");
     }

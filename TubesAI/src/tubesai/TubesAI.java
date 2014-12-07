@@ -7,7 +7,9 @@
 package tubesai;
 
 import DB.Converter;
+import java.util.Random;
 import learning.MachineLearning;
+import weka.classifiers.Evaluation;
 
 /**
  *
@@ -20,7 +22,7 @@ public class TubesAI {
      */
     public static void main(String[] args) throws Exception {
         //String pathdataset = "dataset.arff"; this is absolute path
-        String pathCSV = "testing.csv";
+        String pathCSV = "res.csv";
         String pathArff = "testing.arff";
         
         MachineLearning l = new MachineLearning();
@@ -33,15 +35,19 @@ public class TubesAI {
             l.loadDataset();
             l.makeWordVector();
             l.learningSVM();
-            l.evaluate(l.SVM, l.datasetPath, 1);
+            l.loadTestInstance(pathArff);
+            //l.classifyTestInstance(pathArff);
+            l.evaluate(2);
         }
         else {
-            l.loadHypothesis(1);
+            l.loadHypothesis();
             Converter c = new Converter();
             c.saveCSVtoArff(pathCSV, pathArff);
             l.loadDataset();
+            l.makeWordVector();
             l.loadTestInstance(pathArff);
-            l.classifyTestInstance();
+            //l.classifyTestInstance(pathArff);
+            l.evaluate(2);
         }
     }
 }

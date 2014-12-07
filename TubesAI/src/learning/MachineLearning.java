@@ -12,11 +12,9 @@ import weka.classifiers.Evaluation;
 import weka.classifiers.Classifier;
 import java.io.*;
 import java.util.Random;
-import weka.classifiers.functions.LibSVM;
-import weka.classifiers.meta.FilteredClassifier;
+import weka.classifiers.misc.InputMappedClassifier;
 import weka.filters.Filter;
 import weka.filters.unsupervised.attribute.Add;
-import weka.filters.unsupervised.attribute.Standardize;
 import weka.filters.unsupervised.attribute.StringToWordVector;
 /**
  *
@@ -25,7 +23,7 @@ import weka.filters.unsupervised.attribute.StringToWordVector;
 public class MachineLearning {
     private ArffLoader loader;
     private Instances dataset;
-    public LibSVM SVM;
+    public InputMappedClassifier cls;
     private int classAttrNum; //default 0 untuk tubes aslinya
     private Instances unlabeled;
     private Instances labeled; //for testring
@@ -54,8 +52,8 @@ public class MachineLearning {
         unlabeled = ul;
     }
     
-    public LibSVM getModel() {
-        return SVM;
+    public InputMappedClassifier getModel() {
+        return cls;
     }
     
     public int getClassAttrNum() {
@@ -71,7 +69,7 @@ public class MachineLearning {
        F.S : arff dataset loaded */ 
         
         loader = new ArffLoader();
-        loader.setSource(new File(datasetPath));
+        loader.setSource(new File("dataset.arff"));
         dataset = loader.getDataSet();
         dataset.setClass(dataset.attribute("label"));
     }
@@ -94,20 +92,19 @@ public class MachineLearning {
         dataset.setClassIndex(classAttrNum); 
     }
     
-    public void evaluate(Classifier cls, String Path, int evalOption) throws Exception {
+    public void evaluate(int evalOption) throws Exception {
     /* I.S : classifier, path and evalOption defined 
        F.S : model evaluated using either 10-fold-cross or full */
         
         Evaluation eval = new Evaluation(dataset);
         if (evalOption==1) { //10-fold-cross
-            eval.crossValidateModel(cls, dataset, 10, new Random(1));
+            eval.crossValidateModel(cls, unlabeled, 10, new Random(1));
         }
         else { //full
-            eval.evaluateModel(cls, dataset);
+            eval.evaluateModel(cls, unlabeled);
         }
         
         System.out.println(eval.toSummaryString("\nResults\n\n", false));
-        saveHypothesis(SVM);
     }
     
     public void saveHypothesis(Classifier cls) throws Exception {
@@ -141,12 +138,12 @@ public class MachineLearning {
         }
     }
     
-    public void loadHypothesis(int option) throws Exception {
+    public void loadHypothesis() throws Exception {
     /* I.S : option defined, model defined
        F.S : saved hypothesis loaded */
         
-        SVM = new LibSVM();
-        SVM = (LibSVM) weka.core.SerializationHelper.read("class weka.classifiers.functions.LibSVM.model");
+        cls = new InputMappedClassifier();
+        cls = (InputMappedClassifier) weka.core.SerializationHelper.read("class weka.classifiers.misc.InputMappedClassifier.model");
         readClassAttrNum();
     }
     
@@ -154,20 +151,19 @@ public class MachineLearning {
     /* I.S : data defined
        F.S : SVM hypothesis constructed */
         
-        SVM = new LibSVM(); // new instance of SVM
-        SVM.setOptions(Utils.splitOptions("**-G 0.09** -S 0 -T 3 -D 3 -R 0.0 -N 0.5 -M 100.0 -C 1.0 -E 0.9 -P 0.1 -seed 1 -B 1")); 
-        SVM.buildClassifier(dataset);
-        saveHypothesis(SVM);
+        cls = new InputMappedClassifier();
+        cls.setOptions(Utils.splitOptions("-I -trim -W weka.classifiers.functions.SMO -- -C 1.0 -L 0.001 -P 1.0E-12 -N 0 -V -1 -W 1 -K \"weka.classifiers.functions.supportVector.PolyKernel -E 1.0 -C 250007\""));
+        cls.buildClassifier(dataset);
+        saveHypothesis(cls);
     }
     
-    public void classifyTestInstance() throws Exception {
+    public void classifyTestInstance(String pathArff) throws Exception {
     /* I.S : test instances defined, classifier defined
        F.S : test instances classification output to screen */
        
         double clsLabel = 0;
         for (int i=0; i<unlabeled.numInstances(); i++) {
-            //System.out.println(unlabeled.instance(0));
-            clsLabel = SVM.classifyInstance(unlabeled.instance(i));
+            clsLabel = cls.classifyInstance(unlabeled.instance(i));
             labeled.instance(i).setClassValue(clsLabel);
         }
         
@@ -177,12 +173,12 @@ public class MachineLearning {
         pw.println("Full_text,label");
         
         loader = new ArffLoader();
-        loader.setSource(new File("testing.arff"));
-        dataset = loader.getDataSet();
-        dataset.setClass(dataset.attribute("label"));
+        loader.setSource(new File(pathArff));
+        Instances full_text = loader.getDataSet();
+        full_text.setClass(full_text.attribute("label"));
         
         for (int i=0; i<labeled.numInstances(); i++) {
-            pw.println("\""+dataset.instance(i).stringValue(0)+"\""+","+labeled.instance(i).stringValue(0));
+            pw.println("\""+full_text.instance(i).stringValue(1)+"\""+","+labeled.instance(i).stringValue(0));
         }
         //Flush the output to the file
         pw.flush();
@@ -195,8 +191,6 @@ public class MachineLearning {
     public void loadTestInstance(String path) throws Exception {
     /* I.S : path defined
        F.S : arff test instance loaded */
-        
-        makeWordVector();
         
         loader = new ArffLoader();
         loader.setSource(new File(path));
@@ -213,9 +207,7 @@ public class MachineLearning {
         filter.setUseStoplist(true);
         filter.setIDFTransform(true);
         filter.setInputFormat(unlabeled);
-        unlabeled = Filter.useFilter(unlabeled, filter);   
-        attrMapping();
-        unlabeled.setClassIndex(unlabeled.attribute("label").index());
+        unlabeled = Filter.useFilter(unlabeled, filter);
         labeled = new Instances(unlabeled);
     }
     
@@ -223,12 +215,14 @@ public class MachineLearning {
     /*  I.S : dataset and datatest loaded
         F.S : test instance attribute mapped to dataset attribute */
         
+        System.out.println(unlabeled.numAttributes());
+        
         //delete attribute
         int i=0;
         while (i<unlabeled.numAttributes()) {
             boolean res = false;
             for (int j=0; j<dataset.numAttributes(); j++) {
-                res = unlabeled.attribute(i).name().equalsIgnoreCase(dataset.attribute(j).name().trim());
+                res = unlabeled.attribute(i).name().trim().equalsIgnoreCase(dataset.attribute(j).name().trim());
                 if (res) break;
             }
             if (!res) {
@@ -241,7 +235,7 @@ public class MachineLearning {
         for (i=0; i<dataset.numAttributes(); i++) {
             boolean res = false;
             for (int j=0; j<unlabeled.numAttributes() && !res; j++) {
-                res = unlabeled.attribute(j).name().equals(dataset.attribute(i).name());
+                res = unlabeled.attribute(j).name().trim().equalsIgnoreCase(dataset.attribute(i).name().trim());
             }
             if (!res) {
                 Add add = new Add();
@@ -254,6 +248,8 @@ public class MachineLearning {
                 }
             }   
         }
+        
+        System.out.println(unlabeled.numAttributes());
     }
     
     private String mapping(int num) {
